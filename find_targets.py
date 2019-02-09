@@ -26,7 +26,7 @@ def removeNoise(hsv_img, kernelSize, lower_color_range, upper_color_range):
 
 def findObject(dilate, objName):
     # Find boundary of object
-    _, contours, hierarchy = cv2.findContours(dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     # Only proceed if contours were found
     if(contours != None):
         if(len(contours) > 0):
@@ -50,7 +50,7 @@ def findObject(dilate, objName):
             bottom = tuple(cnt[cnt[:,:,1].argmax()][0])
 
             # Find and print the width of the cube
-            self.width = right[0] - left[0]
+            width = right[0] - left[0]
             # print(objName + ": " + str(width))
             # Use boundary points to find the top left and bottom right corners
             top_left = (left[0], top[1])
@@ -59,7 +59,7 @@ def findObject(dilate, objName):
             # Draw a rectangle bounding the object using top left and bottom right points
             cv2.rectangle(bgr_img, top_left, bottom_right, color, 3)
             # Find the center point of the object
-            self.center_point = (int((top_left[0]+bottom_right[0])/2), int((top_left[1]+bottom_right[1])/2))
+            center_point = (int((top_left[0]+bottom_right[0])/2), int((top_left[1]+bottom_right[1])/2))
 
             # Draw circle at the center point
             cv2.circle(bgr_img, center_point, 5, color, -1)
@@ -219,8 +219,8 @@ if __name__ == "__main__":
         # Enable the below values if LEDs are NOT bright enough
         # retro_hsv_lower = np.array([87, 155, 230])
         # retro_hsv_upper = np.array([95, 200, 255])
-        retro_hsv_lower = np.array([43, 125, 171])
-        retro_hsv_upper = np.array([57, 255, 255])
+        retro_hsv_lower = np.array([0, 0, 0]) # np.array([43, 125, 171])
+        retro_hsv_upper = np.array([165, 23, 255])
         retro_dilate = removeNoise(hsv_img, (5,5), retro_hsv_lower, retro_hsv_upper)
         retro_img = findObject(retro_dilate, "retroreflective")
 
