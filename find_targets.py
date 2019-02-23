@@ -24,7 +24,10 @@ def removeNoise(hsv_img, kernelSize, lower_color_range, upper_color_range):
     dilate = cv2.dilate(no_noise, np.ones((5,10), np.uint8), iterations=5)
     return dilate
 
-def findObject(contour_boundary, objName):
+def getCenterPoint(top_left, bottom_right):
+    return (int((top_left[0]+bottom_right[0])/2), int((top_left[1]+bottom_right[1])/2))
+
+def displayObject(contour_boundary, objName):
     # If the object is cube, use red, if retroreflective, use blue
     if(objName == "cube"):
         color = (0,0,255)
@@ -36,26 +39,26 @@ def findObject(contour_boundary, objName):
     # Draw a rectangle bounding the object using top left and bottom right points
     cv2.rectangle(bgr_img, top_left, bottom_right, color, 3)
     # Find the center point of the object
-    center_point = (int((top_left[0]+bottom_right[0])/2), int((top_left[1]+bottom_right[1])/2))
+    center_point = getCenterPoint(top_left, bottom_right)
 
     # Draw circle at the center point
     cv2.circle(bgr_img, center_point, 5, color, -1)
 
-    isOffCenter = False # Enable if camera is off center
-    angle = None
-    if(isOffCenter): # If camera is NOT in center, use this
-        # Find the angle to the center point
-        offset = 90 # Change this as needed
-        adjusted_point = center_point[0] - offset
-        angle = getAngle(adjusted_point)
-        cv2.circle(bgr_img, (adjusted_point, center_point[1]), 5, color, -1)
-    else:
-        # If camera IS in center, use this
-        angle = getAngle(center_point[0])
-    print(objName, ":", angle)
+    # isOffCenter = False # Enable if camera is off center
+    # angle = None
+    # if(isOffCenter): # If camera is NOT in center, use this
+    #     # Find the angle to the center point
+    #     offset = 90 # Change this as needed
+    #     adjusted_point = center_point[0] - offset
+    #     angle = getAngle(adjusted_point)
+    #     cv2.circle(bgr_img, (adjusted_point, center_point[1]), 5, color, -1)
+    # else:
+    #     # If camera IS in center, use this
+    #     angle = getAngle(center_point[0])
+    # print(objName, ":", angle)
     # If the program isn't in testing mode, send data to RoboRIO
-    if(sendPackets):
-        sendData(angle, width, objName)
+    # if(sendPackets):
+    #     sendData(angle, width, objName)
     return hsv_img
 
 def getContourBoundary(contour):
@@ -65,14 +68,20 @@ def getContourBoundary(contour):
     top = tuple(contour[contour[:,:,1].argmin()][0])
     bottom = tuple(contour[contour[:,:,1].argmax()][0])
 
-    # Find and print the width of the cube
-    width = right[0] - left[0]
-    # print(objName + ": " + str(width))
     # Use boundary points to find the top left and bottom right corners
     top_left = (left[0], top[1])
     bottom_right = (right[0], bottom[1])
 
     return top_left, bottom_right
+
+def prepareForRoboRIO(contour_boundary, objName):
+    top_left, bottom_right = contour_boundary
+    width = bottom_right[0] - top_left[0]
+    center_X, _ = getCenterPoint(top_left, bottom_right)
+
+    angle = getAngle(center_X)
+    if(sendPackets):
+        sendData(angle, width, objName)
 
 def findObjectContours(dilate, objName):
     # Find boundary of object
@@ -82,9 +91,11 @@ def findObjectContours(dilate, objName):
         if(len(contours) > 0):
             sorted(contours, key=lambda contour: cv2.contourArea(contour), reverse=True)
             contour_boundaries = (getContourBoundary(contours[0]), getContourBoundary(contours[1]))
+            for contour_boundary in contour_boundaries:
+                prepareForRoboRIO(contour_boundary, objName)
             for contour_boundary in contour_boundaries[:-1]:
-                findObject(contour_boundary, objName)
-            return findObject(contour_boundaries[-1], objName)
+                displayObject(contour_boundary, objName)
+            return displayObject(contour_boundaries[-1], objName)
 
 def getAngle(point):
     # Use the center_point, fov, and width to find the heading (angle to target)
@@ -202,7 +213,7 @@ if __name__ == "__main__":
     while(True):
         time0 = time.time()
         # Read the frame from the video capture
-        _, bgr_img = video_capture.read()
+        # _, bgr_img = video_capture.read()
         bgr_img = cv2.imread("/Users/cbmonk/Downloads/test_image_2019_1.jpg")
         # Convert the frame to HSV
         hsv_img = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2HSV)
