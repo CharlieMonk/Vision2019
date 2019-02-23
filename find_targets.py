@@ -24,7 +24,7 @@ def removeNoise(hsv_img, kernelSize, lower_color_range, upper_color_range):
     dilate = cv2.dilate(no_noise, np.ones((5,10), np.uint8), iterations=5)
     return dilate
 
-def findObject(dilate, objName):
+def findTargets(dilate, objName):
     # Find boundary of object
     _, contours, hierarchy = cv2.findContours(dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     # Only proceed if contours were found
@@ -50,7 +50,7 @@ def findObject(dilate, objName):
             bottom = tuple(cnt[cnt[:,:,1].argmax()][0])
 
             # Find and print the width of the cube
-            self.width = right[0] - left[0]
+            width = right[0] - left[0]
             # print(objName + ": " + str(width))
             # Use boundary points to find the top left and bottom right corners
             top_left = (left[0], top[1])
@@ -59,7 +59,7 @@ def findObject(dilate, objName):
             # Draw a rectangle bounding the object using top left and bottom right points
             cv2.rectangle(bgr_img, top_left, bottom_right, color, 3)
             # Find the center point of the object
-            self.center_point = (int((top_left[0]+bottom_right[0])/2), int((top_left[1]+bottom_right[1])/2))
+            center_point = (int((top_left[0]+bottom_right[0])/2), int((top_left[1]+bottom_right[1])/2))
 
             # Draw circle at the center point
             cv2.circle(bgr_img, center_point, 5, color, -1)
@@ -122,7 +122,7 @@ counter = 0
 # Track if the program has ran (if not, create a new folder for image logging)
 ranOnce = False
 # Folder path for logging images
-folder = ""
+folder = "/var/log/Vision"
 # Track if the program is being tested
 isTesting = False
 # Should the images be displayed on screen?
@@ -133,21 +133,19 @@ sendPackets = True
 shouldReduceExposure = True
 # If test is found in the cmd line arguments, then the program is testing
 for arg in sys.argv:
-    if(not isTesting):
-        if(arg == "cube"):
-            shouldReduceExposure = False
-        if(arg == "test"):
-            # When testing, use an alternate filepath
-            folder = "/Users/cbmonk/Downloads/ImageLogging/"
-            isTesting = True
-        else:
-            folder = "/var/log/Vision"
-            if(shouldReduceExposure):
-                reduceExposure()
+    if(arg == "cube"):
+        shouldReduceExposure = False
+    if(arg == "test"):
+        # When testing, use an alternate filepath
+        folder = "/Users/cbmonk/Downloads/ImageLogging/"
+        isTesting = True
     if(arg == "displayimages"):
         displayImages = True
     if(arg == "nopackets"):
         sendPackets = False
+
+if(shouldReduceExposure):
+    reduceExposure()
 
 # Setup UDP Channel
 rio_ip = "10.10.76.2"
@@ -210,7 +208,7 @@ if __name__ == "__main__":
         cube_hsv_lower = np.array([25, 100, 100])
         cube_hsv_upper = np.array([28, 255, 215])
         cube_dilate = removeNoise(hsv_img, (5,5), cube_hsv_lower,cube_hsv_upper)
-        cube_img = findObject(cube_dilate, "cube")
+        cube_img = findTargets(cube_dilate, "cube")
 
         # Find the retroreflective tape
         # Use these HSV values if the LEDs are very bright and exposure is normal
@@ -222,7 +220,7 @@ if __name__ == "__main__":
         retro_hsv_lower = np.array([43, 125, 171])
         retro_hsv_upper = np.array([57, 255, 255])
         retro_dilate = removeNoise(hsv_img, (5,5), retro_hsv_lower, retro_hsv_upper)
-        retro_img = findObject(retro_dilate, "retroreflective")
+        retro_img = findTargets(retro_dilate, "retroreflective")
 
         # Display the BGR image with found objects bounded by rectangles
         if(displayImages):
