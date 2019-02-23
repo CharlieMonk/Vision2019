@@ -24,24 +24,14 @@ def removeNoise(hsv_img, kernelSize, lower_color_range, upper_color_range):
     dilate = cv2.dilate(no_noise, np.ones((5,10), np.uint8), iterations=5)
     return dilate
 
-def findObject(contour, objName):
+def findObject(contour_boundary, objName):
     # If the object is cube, use red, if retroreflective, use blue
     if(objName == "cube"):
         color = (0,0,255)
     elif(objName == "retroreflective"):
         color = (255,0,0)
-    # Extract boundary points of object
-    left = tuple(contour[contour[:,:,0].argmin()][0])
-    right = tuple(contour[contour[:,:,0].argmax()][0])
-    top = tuple(contour[contour[:,:,1].argmin()][0])
-    bottom = tuple(contour[contour[:,:,1].argmax()][0])
 
-    # Find and print the width of the cube
-    width = right[0] - left[0]
-    # print(objName + ": " + str(width))
-    # Use boundary points to find the top left and bottom right corners
-    top_left = (left[0], top[1])
-    bottom_right = (right[0], bottom[1])
+    top_left, bottom_right = contour_boundary
 
     # Draw a rectangle bounding the object using top left and bottom right points
     cv2.rectangle(bgr_img, top_left, bottom_right, color, 3)
@@ -68,69 +58,33 @@ def findObject(contour, objName):
         sendData(angle, width, objName)
     return hsv_img
 
+def getContourBoundary(contour):
+    # Extract boundary points of object
+    left = tuple(contour[contour[:,:,0].argmin()][0])
+    right = tuple(contour[contour[:,:,0].argmax()][0])
+    top = tuple(contour[contour[:,:,1].argmin()][0])
+    bottom = tuple(contour[contour[:,:,1].argmax()][0])
+
+    # Find and print the width of the cube
+    width = right[0] - left[0]
+    # print(objName + ": " + str(width))
+    # Use boundary points to find the top left and bottom right corners
+    top_left = (left[0], top[1])
+    bottom_right = (right[0], bottom[1])
+
+    return top_left, bottom_right
+
 def findObjectContours(dilate, objName):
     # Find boundary of object
     contours, hierarchy = cv2.findContours(dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     # Only proceed if contours were found
     if(contours != None):
         if(len(contours) > 0):
-            # Find the largest contour
-            largest_area = 0
-            second_largest_area = 0
-            cnt1 = 0
-            cnt2 = 0
             sorted(contours, key=lambda contour: cv2.contourArea(contour), reverse=True)
-
-            findObject(contours[0], objName)
-            return findObject(contours[1], objName)
-
-            """
-            # If the object is cube, use red, if retroreflective, use blue
-            if(objName == "cube"):
-                color = (0,0,255)
-            elif(objName == "retroreflective"):
-                color = (255,0,0)
-            # Extract boundary points of object
-            left = tuple(cnt[cnt[:,:,0].argmin()][0])
-            right = tuple(cnt[cnt[:,:,0].argmax()][0])
-            top = tuple(cnt[cnt[:,:,1].argmin()][0])
-            bottom = tuple(cnt[cnt[:,:,1].argmax()][0])
-
-            # Find and print the width of the cube
-            width = right[0] - left[0]
-            # print(objName + ": " + str(width))
-            # Use boundary points to find the top left and bottom right corners
-            top_left = (left[0], top[1])
-            bottom_right = (right[0], bottom[1])
-
-            # Draw a rectangle bounding the object using top left and bottom right points
-            cv2.rectangle(bgr_img, top_left, bottom_right, color, 3)
-            # Find the center point of the object
-            center_point = (int((top_left[0]+bottom_right[0])/2), int((top_left[1]+bottom_right[1])/2))
-
-            # Draw circle at the center point
-            cv2.circle(bgr_img, center_point, 5, color, -1)
-
-            isOffCenter = False # Enable if camera is off center
-            angle = None
-            if(isOffCenter): # If camera is NOT in center, use this
-                # Find the angle to the center point
-                offset = 90 # Change this as needed
-                adjusted_point = center_point[0] - offset
-                angle = getAngle(adjusted_point)
-                cv2.circle(bgr_img, (adjusted_point, center_point[1]), 5, color, -1)
-            else:
-                # If camera IS in center, use this
-                angle = getAngle(center_point[0])
-            print(objName, ":", angle)
-            # If the program isn't in testing mode, send data to RoboRIO
-            if(sendPackets):
-                sendData(angle, width, objName)
-            # Show the images
-            if(displayImages):
-                cv2.imshow("Mask Image", dilate)   # This should be enabled for debugging purposes ONLY!
-            return hsv_img
-            """
+            contour_boundaries = (getContourBoundary(contours[0]), getContourBoundary(contours[1]))
+            for contour_boundary in contour_boundaries[:-1]:
+                findObject(contour_boundary, objName)
+            return findObject(contour_boundaries[-1], objName)
 
 def getAngle(point):
     # Use the center_point, fov, and width to find the heading (angle to target)
