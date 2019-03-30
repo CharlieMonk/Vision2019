@@ -74,6 +74,10 @@ def getContourBoundary(contour):
 
     return top_left, bottom_right
 
+def getApproximateArea(contour):
+    top_left, bottom_right = getContourBoundary(contour)
+    return abs((bottom_right[0] - top_left[0]) * (bottom_right[1] - top_left[1]))
+
 def prepareForRoboRIO(contour_boundaries, objName):
     contour_boundary_1, contour_boundary_2 = contour_boundaries
 
@@ -88,8 +92,16 @@ def findObjectContours(dilate, objName):
     # Only proceed if contours were found
     if(contours != None):
         if(len(contours) > 1):
-            sorted(contours, key=lambda contour: cv2.contourArea(contour), reverse=True)
-            contour_boundaries = [getContourBoundary(contours[0]), getContourBoundary(contours[1])]
+            sorted(contours, key=lambda contour: getApproximateArea(contour), reverse=True)
+            contour_boundaries = []
+            if True: # (len(contours) < 4):
+                contour_boundaries = [getContourBoundary(contours[0]), getContourBoundary(contours[1])]
+            else:
+                interesting_contours = contours[:4]
+                sorted(interesting_contours, key=lambda contour: abs(getCenterPoint(getContourBoundary(contour))[0] - frame_width/2))
+                contour_boundaries = [getContourBoundary(interesting_contours[0]), getContourBoundary(interesting_contours[1])]
+                # TODO: Add code to threshold area of contours
+                print("Interesting contours type:", type(interesting_contours))
             if sendPackets:
                 prepareForRoboRIO(contour_boundaries, objName)
             else:
@@ -103,7 +115,7 @@ def getAngle(point):
     field_of_view = 65
     pixel_distance = point - frame_width/2
     heading = ((field_of_view/2.0) * pixel_distance)/(frame_width/2)
-    print(pixel_distance)
+    print("Heading:", heading)
     return int(heading)
 
 def sendData(status, angle, width, objName):
@@ -181,7 +193,7 @@ if(sendPackets):
 
 # Set up the webcam input
 video_capture = cv2.VideoCapture(0)
-video_capture.set(cv2.CAP_PROP_FPS, 10)
+video_capture.set(cv2.CAP_PROP_FPS, 7)
 # Find the resolution of the webcam input
 _, bgr_img = video_capture.read()
 _, frame_width, _ = bgr_img.shape
@@ -225,7 +237,7 @@ if __name__ == "__main__":
         # Find the cube
         cube_hsv_lower = np.array([25, 100, 100])
         cube_hsv_upper = np.array([28, 255, 215])
-        cube_dilate = removeNoise(hsv_img, (5,5), cube_hsv_lower,cube_hsv_upper)
+        # cube_dilate = removeNoise(hsv_img, (5,5), cube_hsv_lower,cube_hsv_upper)
 
         # Find the retroreflective tape
         # Use these HSV values if the LEDs are very bright and exposure is normal
@@ -234,8 +246,8 @@ if __name__ == "__main__":
         # Enable the below values if LEDs are NOT bright enough
         # retro_hsv_lower = np.array([87, 155, 230])
         # retro_hsv_upper = np.array([95, 200, 255])
-        retro_hsv_lower = np.array([40, 234, 89]) # np.array([43, 125, 171])
-        retro_hsv_upper = np.array([50, 255, 255])
+        retro_hsv_lower = np.array([40, 210, 55]) # np.array([43, 125, 171])
+        retro_hsv_upper = np.array([55, 255, 255])
         retro_dilate = removeNoise(hsv_img, (5,5), retro_hsv_lower, retro_hsv_upper)
         retro_img = np.array([])
         retro_img = findObjectContours(retro_dilate, "retroreflective")
@@ -252,8 +264,7 @@ if __name__ == "__main__":
         # Keep track of how many times the program has run (for image logging)
         counter+=1
         ranOnce = True
-        #print(time.time()-time0)
-        # Exit the loop when q is pressed
+        print("Time:", time.time()-time0)
 
 # Release the video capture and close the windows when q is pressed
 video_capture.release()
