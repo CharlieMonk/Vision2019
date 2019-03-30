@@ -80,18 +80,20 @@ def prepareForRoboRIO(contour_boundaries, objName):
     angle = getAngle(getCenterPoint(contour_boundary_1[0], contour_boundary_2[1])[0])
     width = abs(contour_boundary_1[0][0] - contour_boundary_2[0][0]) # TODO : Check if subscripting is correct
 
-    sendData(angle, width, objName)
+    sendData(True, angle, width, objName)
 
 def findObjectContours(dilate, objName):
     # Find boundary of object
-    contours, hierarchy = cv2.findContours(dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    _, contours, hierarchy = cv2.findContours(dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     # Only proceed if contours were found
     if(contours != None):
-        if(len(contours) > 0):
+        if(len(contours) > 1):
             sorted(contours, key=lambda contour: cv2.contourArea(contour), reverse=True)
             contour_boundaries = [getContourBoundary(contours[0]), getContourBoundary(contours[1])]
             if sendPackets:
                 prepareForRoboRIO(contour_boundaries, objName)
+            else:
+                sendData(False, 0, 0, "")
             for contour_boundary in contour_boundaries[:-1]:
                 displayObject(contour_boundary, objName)
             return displayObject(contour_boundaries[-1], objName)
@@ -104,9 +106,10 @@ def getAngle(point):
     print(pixel_distance)
     return int(heading)
 
-def sendData(angle, width, objName):
+def sendData(status, angle, width, objName):
     # Put the data (to be sent to the RIO) in a dictionary
     data = {
+        "status" : status,
         "sender" : "vision",
         "object" : objName,
         "angle" : int(angle),
@@ -155,7 +158,7 @@ for arg in sys.argv:
         else:
             folder = "/var/log/Vision"
             if(shouldReduceExposure):
-                reduceExposure()
+            	reduceExposure()
     if(arg == "displayimages"):
         displayImages = True
     if(arg == "nopackets"):
@@ -212,8 +215,8 @@ if __name__ == "__main__":
     while(True):
         time0 = time.time()
         # Read the frame from the video capture
-        # _, bgr_img = video_capture.read()
-        bgr_img = cv2.imread("/Users/cbmonk/Downloads/test_image_2019_1.jpg")
+        _, bgr_img = video_capture.read()
+        # bgr_img = cv2.imread("/Users/cbmonk/Downloads/test_image_2019_1.jpg")
         # Convert the frame to HSV
         hsv_img = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2HSV)
         # Enable line below if reading from precaptured image
@@ -223,7 +226,6 @@ if __name__ == "__main__":
         cube_hsv_lower = np.array([25, 100, 100])
         cube_hsv_upper = np.array([28, 255, 215])
         cube_dilate = removeNoise(hsv_img, (5,5), cube_hsv_lower,cube_hsv_upper)
-        cube_img = findObjectContours(cube_dilate, "cube")
 
         # Find the retroreflective tape
         # Use these HSV values if the LEDs are very bright and exposure is normal
@@ -232,9 +234,10 @@ if __name__ == "__main__":
         # Enable the below values if LEDs are NOT bright enough
         # retro_hsv_lower = np.array([87, 155, 230])
         # retro_hsv_upper = np.array([95, 200, 255])
-        retro_hsv_lower = np.array([0, 0, 0]) # np.array([43, 125, 171])
-        retro_hsv_upper = np.array([165, 23, 255])
+        retro_hsv_lower = np.array([40, 234, 89]) # np.array([43, 125, 171])
+        retro_hsv_upper = np.array([50, 255, 255])
         retro_dilate = removeNoise(hsv_img, (5,5), retro_hsv_lower, retro_hsv_upper)
+        retro_img = np.array([])
         retro_img = findObjectContours(retro_dilate, "retroreflective")
 
         # Display the BGR image with found objects bounded by rectangles
@@ -251,8 +254,6 @@ if __name__ == "__main__":
         ranOnce = True
         #print(time.time()-time0)
         # Exit the loop when q is pressed
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
 
 # Release the video capture and close the windows when q is pressed
 video_capture.release()
